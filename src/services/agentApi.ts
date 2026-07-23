@@ -1,0 +1,95 @@
+/**
+ * Agent API — user-facing "Agentverse". Backed by /api/agents/* (see kotwal
+ * routes/agents.js). All requests share auth with the main app via apiClient.
+ */
+import { API_URLS } from '@/lib/url';
+import { apiJson } from '@/lib/apiClient';
+
+export type AnswerMode = 'strict' | 'hybrid' | 'open';
+export type AgentScope = 'workspace' | 'user';
+export type AgentStatus = 'active' | 'inactive';
+
+export interface Agent {
+  id: string;
+  tenantId: string;
+  scope: AgentScope;
+  workspaceId?: string | null;
+  ownerUserId?: string | null;
+  name: string;
+  description?: string | null;
+  instructions?: string | null;
+  answerMode: AnswerMode;
+  modelId?: string | null;
+  shared: boolean;
+  status: AgentStatus;
+  createdBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AgentInput {
+  name: string;
+  description?: string;
+  instructions?: string;
+  answerMode?: AnswerMode;
+  modelId?: string | null;
+  shared?: boolean;
+  status?: AgentStatus;
+  workspaceId?: string | null;
+}
+
+export interface ChatModelOption {
+  id: string;
+  name: string;
+  provider?: string | null;
+}
+
+// ── Own agents + shared catalog ─────────────────────────────────────────────
+export const listOwnAgents = async (): Promise<Agent[]> => {
+  const data = await apiJson<{ own: Agent[] }>(`${API_URLS.agents.base}?scope=own`, { method: 'GET' });
+  return data.own ?? [];
+};
+
+export const listSharedAgents = async (search?: string): Promise<Agent[]> => {
+  const qs = search && search.trim() ? `?scope=shared&search=${encodeURIComponent(search.trim())}` : '?scope=shared';
+  const data = await apiJson<{ shared: Agent[] }>(`${API_URLS.agents.base}${qs}`, { method: 'GET' });
+  return data.shared ?? [];
+};
+
+export const getAgent = async (id: string): Promise<Agent> => {
+  const data = await apiJson<{ agent: Agent }>(API_URLS.agents.agent(id), { method: 'GET' });
+  return data.agent;
+};
+
+export const createAgent = async (input: AgentInput): Promise<Agent> => {
+  const data = await apiJson<{ agent: Agent }>(API_URLS.agents.base, { method: 'POST', body: input });
+  return data.agent;
+};
+
+export const updateAgent = async (id: string, input: Partial<AgentInput>): Promise<Agent> => {
+  const data = await apiJson<{ agent: Agent }>(API_URLS.agents.agent(id), { method: 'PATCH', body: input });
+  return data.agent;
+};
+
+export const deleteAgent = async (id: string): Promise<void> => {
+  await apiJson(API_URLS.agents.agent(id), { method: 'DELETE' });
+};
+
+// ── Access grants (share with specific users) ───────────────────────────────
+export const grantAccess = async (id: string, userId: string): Promise<void> => {
+  await apiJson(API_URLS.agents.access(id), { method: 'POST', body: { userId } });
+};
+
+export const revokeAccess = async (id: string, userId: string): Promise<void> => {
+  await apiJson(API_URLS.agents.accessUser(id, userId), { method: 'DELETE' });
+};
+
+// ── Chat models (for the optional pinned-model picker) ──────────────────────
+export const listChatModels = async (): Promise<ChatModelOption[]> => {
+  try {
+    const data = await apiJson<{ models?: ChatModelOption[] }>(API_URLS.chatModels, { method: 'GET' });
+    return data.models ?? [];
+  } catch {
+    return [];
+  }
+};
