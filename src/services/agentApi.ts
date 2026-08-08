@@ -3,11 +3,29 @@
  * routes/agents.js). All requests share auth with the main app via apiClient.
  */
 import { API_URLS } from '@/lib/url';
-import { apiJson } from '@/lib/apiClient';
+import { apiJson, apiFetch } from '@/lib/apiClient';
 
 export type AnswerMode = 'strict' | 'hybrid' | 'open';
 export type AgentScope = 'workspace' | 'user';
 export type AgentStatus = 'active' | 'inactive';
+
+export interface ToolConfig {
+  fileAccess:    { enabled: boolean; allowedPaths: string[] };
+  screenCapture: { enabled: boolean };
+  shellExec:     { enabled: boolean; allowedCommands: string[] };
+  webSearch:     boolean;
+  mcpServerIds:  string[];
+}
+
+export function emptyToolConfig(): ToolConfig {
+  return {
+    fileAccess:    { enabled: false, allowedPaths: [] },
+    screenCapture: { enabled: false },
+    shellExec:     { enabled: false, allowedCommands: [] },
+    webSearch:     false,
+    mcpServerIds:  [],
+  };
+}
 
 export interface Agent {
   id: string;
@@ -20,6 +38,7 @@ export interface Agent {
   instructions?: string | null;
   answerMode: AnswerMode;
   modelId?: string | null;
+  toolConfig?: ToolConfig;
   shared: boolean;
   status: AgentStatus;
   createdBy?: string | null;
@@ -33,6 +52,7 @@ export interface AgentInput {
   instructions?: string;
   answerMode?: AnswerMode;
   modelId?: string | null;
+  toolConfig?: ToolConfig;
   shared?: boolean;
   status?: AgentStatus;
   workspaceId?: string | null;
@@ -73,6 +93,28 @@ export const updateAgent = async (id: string, input: Partial<AgentInput>): Promi
 
 export const deleteAgent = async (id: string): Promise<void> => {
   await apiJson(API_URLS.agents.agent(id), { method: 'DELETE' });
+};
+
+/**
+ * Download a signed agent bundle as a .kotwal-agent.json file.
+ * The browser saves it to disk; the user loads it with the kotwal-agent CLI.
+ */
+export const downloadAgent = async (agent: Agent): Promise<void> => {
+  const res = await apiFetch(API_URLS.agents.download(agent.id), { method: 'GET' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+    throw new Error((body.error as string) || `Download failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const safeName = agent.name.replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+  a.download = `${safeName}.kotwal-agent.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 };
 
 // ── Access grants (share with specific users) ───────────────────────────────

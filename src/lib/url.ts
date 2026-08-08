@@ -20,6 +20,7 @@ export const API_URLS = {
     base: withBase('/api/agents'),
     available: withBase('/api/agents/available'),
     agent: (id: string) => withBase(`/api/agents/${id}`),
+    download: (id: string) => withBase(`/api/agents/${id}/download`),
     access: (id: string) => withBase(`/api/agents/${id}/access`),
     accessUser: (id: string, userId: string) => withBase(`/api/agents/${id}/access/${userId}`),
   },

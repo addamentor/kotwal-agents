@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { LayoutGrid, Plus, Trash2, Pencil, Bot, Loader2, RefreshCw, Globe2, Lock } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { LayoutGrid, Plus, Trash2, Pencil, Bot, Loader2, RefreshCw, Globe2, Lock, Download, FolderOpen, Monitor, Terminal, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import AgentForm from '@/components/AgentForm';
-import { Agent, listOwnAgents, deleteAgent, updateAgent } from '@/services/agentApi';
+import { Agent, listOwnAgents, deleteAgent, updateAgent, downloadAgent } from '@/services/agentApi';
 
 export default function MyAgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -13,6 +13,7 @@ export default function MyAgentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Agent | 'new' | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -33,7 +34,7 @@ export default function MyAgentsPage() {
   };
 
   const remove = async (a: Agent) => {
-    if (!window.confirm(`Delete agent "${a.name}"?`)) return;
+    if (!window.confirm('Delete agent "' + a.name + '"?')) return;
     setBusyId(a.id);
     try { await deleteAgent(a.id); setAgents((prev) => prev.filter((x) => x.id !== a.id)); }
     catch (e) { toast({ title: 'Delete failed', variant: 'destructive', description: e instanceof Error ? e.message : undefined }); }
@@ -49,6 +50,17 @@ export default function MyAgentsPage() {
     } catch (e) {
       toast({ title: 'Update failed', variant: 'destructive', description: e instanceof Error ? e.message : undefined });
     } finally { setBusyId(null); }
+  };
+
+  const handleDownload = async (a: Agent) => {
+    setDownloadingId(a.id);
+    try {
+      await downloadAgent(a);
+      const cliName = a.name.replace(/\s+/g, '-').toLowerCase() + '.kotwal-agent.json';
+      toast({ title: 'Bundle downloaded', description: 'Run with: npx kotwal-agent run ' + cliName });
+    } catch (e) {
+      toast({ title: 'Download failed', variant: 'destructive', description: e instanceof Error ? e.message : undefined });
+    } finally { setDownloadingId(null); }
   };
 
   return (
@@ -81,37 +93,61 @@ export default function MyAgentsPage() {
         </div>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {agents.map((a) => (
-            <li key={a.id} className="rounded-xl border border-border p-4 flex flex-col">
-              <div className="flex items-start gap-2.5">
-                <div className="mt-0.5 rounded-lg bg-primary/10 p-1.5 text-primary shrink-0"><Bot className="h-4 w-4" /></div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold truncate">{a.name}</p>
-                  <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                    <Badge variant="outline" className="text-[10px] capitalize">{a.answerMode}</Badge>
-                    {a.shared
-                      ? <Badge variant="outline" className="text-[10px] gap-1 border-[hsl(var(--success)/0.3)] text-[hsl(var(--success))]"><Globe2 className="h-2.5 w-2.5" />Shared</Badge>
-                      : <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground"><Lock className="h-2.5 w-2.5" />Private</Badge>}
+          {agents.map((a) => {
+            const caps = [
+              a.toolConfig?.fileAccess?.enabled    && { icon: FolderOpen, label: 'Files' },
+              a.toolConfig?.screenCapture?.enabled && { icon: Monitor,    label: 'Screen' },
+              a.toolConfig?.shellExec?.enabled     && { icon: Terminal,   label: 'Shell' },
+              a.toolConfig?.webSearch              && { icon: Globe,      label: 'Web' },
+            ].filter(Boolean) as { icon: React.ElementType; label: string }[];
+
+            return (
+              <li key={a.id} className="rounded-xl border border-border p-4 flex flex-col">
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 rounded-lg bg-primary/10 p-1.5 text-primary shrink-0"><Bot className="h-4 w-4" /></div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate">{a.name}</p>
+                    <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className="text-[10px] capitalize">{a.answerMode}</Badge>
+                      {a.shared
+                        ? <Badge variant="outline" className="text-[10px] gap-1 border-[hsl(var(--success)/0.3)] text-[hsl(var(--success))]"><Globe2 className="h-2.5 w-2.5" />Shared</Badge>
+                        : <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground"><Lock className="h-2.5 w-2.5" />Private</Badge>}
+                      {caps.map(({ icon: Icon, label }) => (
+                        <Badge key={label} variant="outline" className="text-[10px] gap-1 text-muted-foreground border-border/50">
+                          <Icon className="h-2.5 w-2.5" />{label}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-              {a.description && <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{a.description}</p>}
+                {a.description && <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{a.description}</p>}
 
-              <div className="mt-auto pt-3 flex items-center gap-1">
-                <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setEditing(a)}>
-                  <Pencil className="h-3.5 w-3.5" />Edit
-                </Button>
-                <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" disabled={busyId === a.id} onClick={() => toggleShared(a)}>
-                  {busyId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe2 className="h-3.5 w-3.5" />}
-                  {a.shared ? 'Unshare' : 'Share'}
-                </Button>
-                <Button size="sm" variant="ghost" className={cn('h-7 w-7 p-0 ml-auto text-muted-foreground hover:text-[hsl(var(--danger))]')}
-                  disabled={busyId === a.id} onClick={() => remove(a)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </li>
-          ))}
+                <div className="mt-auto pt-3 flex items-center gap-1 flex-wrap">
+                  <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setEditing(a)}>
+                    <Pencil className="h-3.5 w-3.5" />Edit
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" disabled={busyId === a.id} onClick={() => toggleShared(a)}>
+                    {busyId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe2 className="h-3.5 w-3.5" />}
+                    {a.shared ? 'Unshare' : 'Share'}
+                  </Button>
+                  <Button
+                    size="sm" variant="ghost"
+                    className="h-7 gap-1 text-xs"
+                    disabled={downloadingId === a.id}
+                    title="Download signed bundle for the kotwal-agent CLI"
+                    onClick={() => handleDownload(a)}
+                  >
+                    {downloadingId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    Download
+                  </Button>
+                  <Button size="sm" variant="ghost" className={cn('h-7 w-7 p-0 ml-auto text-muted-foreground hover:text-[hsl(var(--danger))]')}
+                    disabled={busyId === a.id} onClick={() => remove(a)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
