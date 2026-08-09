@@ -8,6 +8,8 @@ import { apiJson, apiFetch } from '@/lib/apiClient';
 export type AnswerMode = 'strict' | 'hybrid' | 'open';
 export type AgentScope = 'workspace' | 'user';
 export type AgentStatus = 'active' | 'inactive';
+export type AgentType = 'kotwal' | 'proxy';
+export type ProxyAuthType = 'none' | 'bearer' | 'header';
 
 export interface ToolConfig {
   fileAccess:    { enabled: boolean; allowedPaths: string[] };
@@ -44,6 +46,14 @@ export interface Agent {
   createdBy?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  // Proxy agent fields
+  agentType?: AgentType;
+  proxyUrl?: string | null;
+  proxyAuthType?: ProxyAuthType;
+  proxyAuthHeader?: string | null;
+  hasProxySecret?: boolean;
+  proxyRequestTemplate?: Record<string, unknown> | null;
+  proxyResponsePath?: string | null;
 }
 
 export interface AgentInput {
@@ -56,6 +66,14 @@ export interface AgentInput {
   shared?: boolean;
   status?: AgentStatus;
   workspaceId?: string | null;
+  // Proxy agent fields
+  agentType?: AgentType;
+  proxyUrl?: string | null;
+  proxyAuthType?: ProxyAuthType;
+  proxyAuthHeader?: string | null;
+  proxyAuthSecret?: string | null;
+  proxyRequestTemplate?: Record<string, unknown> | null;
+  proxyResponsePath?: string | null;
 }
 
 export interface ChatModelOption {

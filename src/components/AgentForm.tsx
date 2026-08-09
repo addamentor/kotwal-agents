@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, ChevronDown, ChevronUp, FolderOpen, Monitor, Terminal, Globe } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp, FolderOpen, Monitor, Terminal, Globe, ExternalLink } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import { Agent, AgentInput, AnswerMode, ChatModelOption, ToolConfig, createAgent, updateAgent, listChatModels, emptyToolConfig } from '@/services/agentApi';
+import { Agent, AgentInput, AgentType, ProxyAuthType, AnswerMode, ChatModelOption, ToolConfig, createAgent, updateAgent, listChatModels, emptyToolConfig } from '@/services/agentApi';
 import { cn } from '@/lib/utils';
 
 const ANSWER_MODES: { value: AnswerMode; label: string; hint: string }[] = [
@@ -36,6 +36,14 @@ export default function AgentForm({ agent, open, onClose, onSaved }: {
   const [shared, setShared] = useState(false);
   const [toolConfig, setToolConfig] = useState<ToolConfig>(emptyToolConfig());
   const [capsOpen, setCapsOpen] = useState(false);
+  // Proxy agent
+  const [agentType, setAgentType] = useState<AgentType>('kotwal');
+  const [proxyOpen, setProxyOpen] = useState(false);
+  const [proxyUrl, setProxyUrl] = useState('');
+  const [proxyAuthType, setProxyAuthType] = useState<ProxyAuthType>('none');
+  const [proxyAuthHeader, setProxyAuthHeader] = useState('');
+  const [proxyAuthSecret, setProxyAuthSecret] = useState('');
+  const [proxyResponsePath, setProxyResponsePath] = useState('');
   const [saving, setSaving] = useState(false);
   const [models, setModels] = useState<ChatModelOption[]>([]);
 
@@ -50,12 +58,23 @@ export default function AgentForm({ agent, open, onClose, onSaved }: {
     setShared(agent?.shared ?? false);
     setToolConfig(agent?.toolConfig ?? emptyToolConfig());
     setCapsOpen(false);
+    // Proxy fields
+    setAgentType(agent?.agentType ?? 'kotwal');
+    setProxyUrl(agent?.proxyUrl ?? '');
+    setProxyAuthType(agent?.proxyAuthType ?? 'none');
+    setProxyAuthHeader(agent?.proxyAuthHeader ?? '');
+    setProxyAuthSecret(''); // never pre-filled — secret is write-only
+    setProxyResponsePath(agent?.proxyResponsePath ?? '');
+    setProxyOpen(agent?.agentType === 'proxy');
   }, [open, agent]);
 
   useEffect(() => { void listChatModels().then(setModels); }, []);
 
   const save = async () => {
     if (!name.trim()) { toast({ title: 'Name is required', variant: 'destructive' }); return; }
+    if (agentType === 'proxy' && !proxyUrl.trim()) {
+      toast({ title: 'Proxy URL is required for 3rd party agents', variant: 'destructive' }); return;
+    }
     setSaving(true);
     try {
       const input: AgentInput = {
@@ -66,6 +85,14 @@ export default function AgentForm({ agent, open, onClose, onSaved }: {
         modelId: modelId === 'auto' ? null : modelId,
         shared,
         toolConfig,
+        agentType,
+        ...(agentType === 'proxy' ? {
+          proxyUrl: proxyUrl.trim() || null,
+          proxyAuthType,
+          proxyAuthHeader: proxyAuthType === 'header' ? proxyAuthHeader.trim() || null : null,
+          proxyAuthSecret: proxyAuthSecret.trim() || null,
+          proxyResponsePath: proxyResponsePath.trim() || null,
+        } : {}),
       };
       const saved = agent ? await updateAgent(agent.id, input) : await createAgent(input);
       toast({ title: agent ? 'Agent updated' : 'Agent created' });
@@ -239,6 +266,106 @@ export default function AgentForm({ agent, open, onClose, onSaved }: {
                   <span className="font-medium">Web search</span>
                   <span className="text-muted-foreground ml-1">— agent may search the internet (requires web search to be enabled for your tenant)</span>
                 </label>
+              </div>
+            )}
+          </div>
+
+          {/* ── 3rd Party Proxy ── */}
+          <div className="rounded-lg border border-border">
+            <button
+              type="button"
+              onClick={() => { setProxyOpen((v) => !v); if (!proxyOpen) setAgentType('proxy'); }}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <ExternalLink className="h-3.5 w-3.5" />
+                3rd party agent (proxy)
+                {agentType === 'proxy' && <span className="text-primary">enabled</span>}
+              </span>
+              {proxyOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+
+            {proxyOpen && (
+              <div className="border-t border-border px-3 py-3 space-y-3 text-xs">
+                <p className="text-muted-foreground leading-relaxed">
+                  Route every message through an external agent endpoint. All prompts and
+                  responses still pass through Kotwal's detection engine.
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={agentType === 'proxy'}
+                    onCheckedChange={(v) => setAgentType(v ? 'proxy' : 'kotwal')}
+                  />
+                  <span className="font-medium">Enable proxy mode</span>
+                </div>
+
+                {agentType === 'proxy' && (
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">Proxy URL (HTTPS required in production)</Label>
+                      <Input
+                        className="h-8 text-xs font-mono"
+                        value={proxyUrl}
+                        onChange={(e) => setProxyUrl(e.target.value)}
+                        placeholder="https://api.example.com/v1/chat"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">Auth type</Label>
+                      <Select value={proxyAuthType} onValueChange={(v) => setProxyAuthType(v as ProxyAuthType)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          <SelectItem value="bearer">Bearer token</SelectItem>
+                          <SelectItem value="header">Custom header</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {proxyAuthType === 'header' && (
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Header name (e.g. X-Api-Key)</Label>
+                        <Input
+                          className="h-8 text-xs font-mono"
+                          value={proxyAuthHeader}
+                          onChange={(e) => setProxyAuthHeader(e.target.value)}
+                          placeholder="X-Api-Key"
+                        />
+                      </div>
+                    )}
+
+                    {(proxyAuthType === 'bearer' || proxyAuthType === 'header') && (
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">
+                          Secret / token
+                          {agent?.hasProxySecret && <span className="ml-1 text-primary">(already set — leave blank to keep)</span>}
+                        </Label>
+                        <Input
+                          className="h-8 text-xs font-mono"
+                          type="password"
+                          value={proxyAuthSecret}
+                          onChange={(e) => setProxyAuthSecret(e.target.value)}
+                          placeholder={agent?.hasProxySecret ? '••••••••' : 'sk-...'}
+                          autoComplete="new-password"
+                        />
+                        <p className="text-[10px] text-muted-foreground">Stored encrypted at rest. Never returned in API responses.</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">Response path (optional — dot notation, e.g. choices.0.message.content)</Label>
+                      <Input
+                        className="h-8 text-xs font-mono"
+                        value={proxyResponsePath}
+                        onChange={(e) => setProxyResponsePath(e.target.value)}
+                        placeholder="auto-detect"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Leave blank to auto-detect OpenAI / Anthropic / plain shapes.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

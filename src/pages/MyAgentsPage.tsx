@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { LayoutGrid, Plus, Trash2, Pencil, Bot, Loader2, RefreshCw, Globe2, Lock, Download, FolderOpen, Monitor, Terminal, Globe } from 'lucide-react';
+import { LayoutGrid, Plus, Trash2, Pencil, Bot, Loader2, RefreshCw, Globe2, Lock, Download, FolderOpen, Monitor, Terminal, Globe, MessageSquare } from 'lucide-react';
+
+const APP_URL = (import.meta.env.VITE_APP_URL as string | undefined) || 'https://app.aikotwal.com';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
@@ -52,8 +54,11 @@ export default function MyAgentsPage() {
     } finally { setBusyId(null); }
   };
 
-  const handleDownload = async (a: Agent) => {
-    setDownloadingId(a.id);
+  const openInChat = (a: Agent) => {
+    window.open(`${APP_URL}/?agentId=${encodeURIComponent(a.id)}`, '_blank', 'noopener');
+  };
+
+  const handleDownload = async (a: Agent) => {    setDownloadingId(a.id);
     try {
       await downloadAgent(a);
       const cliName = a.name.replace(/\s+/g, '-').toLowerCase() + '.kotwal-agent.json';
@@ -123,6 +128,9 @@ export default function MyAgentsPage() {
                 {a.description && <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{a.description}</p>}
 
                 <div className="mt-auto pt-3 flex items-center gap-1 flex-wrap">
+                  <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => openInChat(a)}>
+                    <MessageSquare className="h-3.5 w-3.5" />Chat
+                  </Button>
                   <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => setEditing(a)}>
                     <Pencil className="h-3.5 w-3.5" />Edit
                   </Button>
