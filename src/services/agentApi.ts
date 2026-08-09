@@ -144,7 +144,30 @@ export const revokeAccess = async (id: string, userId: string): Promise<void> =>
   await apiJson(API_URLS.agents.accessUser(id, userId), { method: 'DELETE' });
 };
 
-// ── Chat models (for the optional pinned-model picker) ──────────────────────
+// ── Agent run logs ────────────────────────────────────────────────────────────
+
+export interface AgentRunSummary {
+  id: string;
+  agentId: string;
+  userId: string | null;
+  sessionId: string | null;
+  status: 'running' | 'completed' | 'blocked' | 'error';
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  stepCount: number;
+  totalTokens: number;
+  totalCredits: number;
+  errorMessage: string | null;
+}
+
+export const listAgentRuns = async (agentId: string, limit = 20, offset = 0): Promise<AgentRunSummary[]> => {
+  const data = await apiJson<{ runs: AgentRunSummary[] }>(
+    `${API_URLS.agents.agent(agentId)}/runs?limit=${limit}&offset=${offset}`,
+    { method: 'GET' },
+  );
+  return data.runs ?? [];
+};
 export const listChatModels = async (): Promise<ChatModelOption[]> => {
   try {
     const data = await apiJson<{ models?: ChatModelOption[] }>(API_URLS.chatModels, { method: 'GET' });

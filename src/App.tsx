@@ -6,6 +6,8 @@ import AppLayout from '@/components/layout/AppLayout';
 import LoginPage from '@/pages/LoginPage';
 import MyAgentsPage from '@/pages/MyAgentsPage';
 import CatalogPage from '@/pages/CatalogPage';
+import AgentChatPage from '@/pages/AgentChatPage';
+import AgentRunsPage from '@/pages/AgentRunsPage';
 
 const Protected = ({ children }: { children: React.ReactNode }) => (
   <ProtectedRoute><AppLayout>{children}</AppLayout></ProtectedRoute>
@@ -19,6 +21,9 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<Protected><MyAgentsPage /></Protected>} />
           <Route path="/catalog" element={<Protected><CatalogPage /></Protected>} />
+          {/* Per-agent pages — chat and run history */}
+          <Route path="/agents/:id/chat" element={<Protected><AgentChatPage /></Protected>} />
+          <Route path="/agents/:id/runs" element={<Protected><AgentRunsPage /></Protected>} />
           <Route path="*" element={<Protected><MyAgentsPage /></Protected>} />
         </Routes>
       </BrowserRouter>

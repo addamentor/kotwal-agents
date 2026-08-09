@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Compass, Bot, Loader2, Search, RefreshCw, ArrowUpRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Agent, listSharedAgents } from '@/services/agentApi';
 
-// Deep-link to the chat app with an agent preselected. The chat app reads
-// ?agentId=… on load. Overridable per environment.
+// Deep-link to the full chat app — used only as a secondary "open in full app" option.
 const APP_URL = (import.meta.env.VITE_APP_URL as string | undefined) || 'https://app.aikotwal.com';
 
 export default function CatalogPage() {
+  const navigate = useNavigate();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +30,7 @@ export default function CatalogPage() {
   }, [search, load]);
 
   const useInChat = (a: Agent) => {
-    window.open(`${APP_URL}/?agentId=${encodeURIComponent(a.id)}`, '_blank', 'noopener');
+    navigate(`/agents/${a.id}/chat`);
   };
 
   return (
@@ -75,10 +76,19 @@ export default function CatalogPage() {
                 </div>
               </div>
               {a.description && <p className="mt-2 text-xs text-muted-foreground line-clamp-3">{a.description}</p>}
-              <div className="mt-auto pt-3">
+              <div className="mt-auto pt-3 flex items-center gap-2">
                 <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => useInChat(a)}>
-                  Use in chat<ArrowUpRight className="h-3.5 w-3.5" />
+                  Chat<ArrowUpRight className="h-3.5 w-3.5" />
                 </Button>
+                <a
+                  href={`${APP_URL}/?agentId=${encodeURIComponent(a.id)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  title="Open in full chat app"
+                >
+                  Full app ↗
+                </a>
               </div>
             </li>
           ))}

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, Plus, Trash2, Pencil, Bot, Loader2, RefreshCw, Globe2, Lock, Download, FolderOpen, Monitor, Terminal, Globe, MessageSquare } from 'lucide-react';
-
-const APP_URL = (import.meta.env.VITE_APP_URL as string | undefined) || 'https://app.aikotwal.com';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
@@ -10,6 +9,7 @@ import AgentForm from '@/components/AgentForm';
 import { Agent, listOwnAgents, deleteAgent, updateAgent, downloadAgent } from '@/services/agentApi';
 
 export default function MyAgentsPage() {
+  const navigate = useNavigate();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export default function MyAgentsPage() {
   };
 
   const openInChat = (a: Agent) => {
-    window.open(`${APP_URL}/?agentId=${encodeURIComponent(a.id)}`, '_blank', 'noopener');
+    navigate(`/agents/${a.id}/chat`);
   };
 
   const handleDownload = async (a: Agent) => {    setDownloadingId(a.id);
