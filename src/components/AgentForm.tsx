@@ -10,6 +10,7 @@ import { Loader2, ChevronDown, ChevronUp, FolderOpen, Monitor, Terminal, Globe, 
 import { toast } from '@/components/ui/use-toast';
 import { Agent, AgentInput, AgentType, ProxyAuthType, AnswerMode, ChatModelOption, ToolConfig, createAgent, updateAgent, listChatModels, emptyToolConfig } from '@/services/agentApi';
 import { cn } from '@/lib/utils';
+import KnowledgeSection from '@/components/KnowledgeSection';
 
 const ANSWER_MODES: { value: AnswerMode; label: string; hint: string }[] = [
   { value: 'hybrid', label: 'Hybrid', hint: 'Prefer any attached knowledge, fall back to the model and flag it.' },
@@ -143,7 +144,22 @@ export default function AgentForm({ agent, open, onClose, onSaved }: {
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">Instructions / persona (optional)</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Instructions / persona (optional)</Label>
+              <button
+                type="button"
+                className="text-[10px] text-primary hover:underline flex items-center gap-1"
+                title="Appends the remember-tag instruction so the agent knows how to save facts to long-term memory"
+                onClick={() => {
+                  const snippet = `\nWhen you learn something worth remembering for future conversations, write <remember key="fact_name">value</remember> at the end of your reply. To forget a fact, use <remember key="fact_name"></remember>.`;
+                  setInstructions(prev =>
+                    prev.includes('<remember key=') ? prev : (prev.trim() ? prev.trim() + snippet : snippet.trim())
+                  );
+                }}
+              >
+                + Add memory instruction
+              </button>
+            </div>
             <Textarea className="text-sm min-h-[90px]" value={instructions} onChange={(e) => setInstructions(e.target.value)}
               placeholder="e.g. You are a concise research assistant. Cite sources and avoid speculation." />
           </div>
@@ -269,6 +285,18 @@ export default function AgentForm({ agent, open, onClose, onSaved }: {
               </div>
             )}
           </div>
+
+          {/* ── Knowledge sources (AG4) — only shown when editing an existing agent ── */}
+          {agent && (
+            <div className="rounded-lg border border-border px-3 py-3">
+              <KnowledgeSection agentId={agent.id} />
+            </div>
+          )}
+          {!agent && (
+            <p className="text-[11px] text-muted-foreground">
+              Save the agent first to add knowledge sources (files, URLs).
+            </p>
+          )}
 
           {/* ── 3rd Party Proxy ── */}
           <div className="rounded-lg border border-border">

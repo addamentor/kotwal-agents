@@ -1,11 +1,14 @@
 import { NavLink } from 'react-router-dom';
-import { Bot, Compass, LayoutGrid, LogOut, ExternalLink } from 'lucide-react';
+import { Bot, Compass, LayoutGrid, LogOut, ExternalLink, Settings, Users, Store } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 
 const NAV = [
-  { to: '/', label: 'My Agents', icon: LayoutGrid, end: true },
-  { to: '/catalog', label: 'Shared Catalog', icon: Compass, end: false },
+  { to: '/',             label: 'My Agents',    icon: LayoutGrid, end: true },
+  { to: '/catalog',      label: 'Shared Catalog', icon: Compass,  end: false },
+  { to: '/teams',        label: 'Teams',         icon: Users,     end: false },
+  { to: '/marketplace',  label: 'Marketplace',   icon: Store,     end: false },
+  { to: '/integrations', label: 'Integrations', icon: Settings,   end: false },
 ];
 
 // Link back to the main chat app. Overridable via env for each environment.

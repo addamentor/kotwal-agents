@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, Plus, Trash2, Pencil, Bot, Loader2, RefreshCw, Globe2, Lock, Download, FolderOpen, Monitor, Terminal, Globe, MessageSquare } from 'lucide-react';
+import { LayoutGrid, Plus, Trash2, Pencil, Bot, Loader2, RefreshCw, Globe2, Lock, Download, FolderOpen, Monitor, Terminal, Globe, MessageSquare, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import AgentForm from '@/components/AgentForm';
-import { Agent, listOwnAgents, deleteAgent, updateAgent, downloadAgent } from '@/services/agentApi';
+import { Agent, listOwnAgents, deleteAgent, updateAgent, downloadAgent, publishAgentToMarketplace, retractAgentFromMarketplace } from '@/services/agentApi';
 
 export default function MyAgentsPage() {
   const navigate = useNavigate();
@@ -16,6 +16,7 @@ export default function MyAgentsPage() {
   const [editing, setEditing] = useState<Agent | 'new' | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,15 +55,40 @@ export default function MyAgentsPage() {
     } finally { setBusyId(null); }
   };
 
-  const openInChat = (a: Agent) => {
+  const handlePublish = async (a: Agent) => {
+    const isPublished = a.publishStatus === 'approved' || a.publishStatus === 'pending';
+    if (isPublished) {
+      if (!window.confirm(`Retract "${a.name}" from the marketplace?`)) return;
+    } else {
+      if (!window.confirm(`Submit "${a.name}" to the marketplace for review?`)) return;
+    }
+    setPublishingId(a.id);
+    try {
+      if (isPublished) {
+        await retractAgentFromMarketplace(a.id);
+        setAgents(prev => prev.map(x => x.id === a.id ? { ...x, publishStatus: null } : x));
+        toast({ title: 'Retracted from marketplace' });
+      } else {
+        await publishAgentToMarketplace(a.id);
+        setAgents(prev => prev.map(x => x.id === a.id ? { ...x, publishStatus: 'pending' } : x));
+        toast({ title: 'Submitted for review', description: 'A platform admin will review your agent.' });
+      }
+    } catch (e) {
+      toast({ title: 'Failed', variant: 'destructive', description: e instanceof Error ? e.message : undefined });
+    } finally { setPublishingId(null); }
+  };
     navigate(`/agents/${a.id}/chat`);
   };
 
-  const handleDownload = async (a: Agent) => {    setDownloadingId(a.id);
+  const handleDownload = async (a: Agent, includeKnowledge = false) => {
+    setDownloadingId(a.id);
     try {
-      await downloadAgent(a);
+      await downloadAgent(a, { includeKnowledge });
       const cliName = a.name.replace(/\s+/g, '-').toLowerCase() + '.kotwal-agent.json';
-      toast({ title: 'Bundle downloaded', description: 'Run with: npx kotwal-agent run ' + cliName });
+      toast({
+        title: includeKnowledge ? 'Bundle with knowledge downloaded' : 'Bundle downloaded',
+        description: 'Run with: npx kotwal-agent run ' + cliName,
+      });
     } catch (e) {
       toast({ title: 'Download failed', variant: 'destructive', description: e instanceof Error ? e.message : undefined });
     } finally { setDownloadingId(null); }
@@ -117,6 +143,8 @@ export default function MyAgentsPage() {
                       {a.shared
                         ? <Badge variant="outline" className="text-[10px] gap-1 border-[hsl(var(--success)/0.3)] text-[hsl(var(--success))]"><Globe2 className="h-2.5 w-2.5" />Shared</Badge>
                         : <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground"><Lock className="h-2.5 w-2.5" />Private</Badge>}
+                      {a.publishStatus === 'approved' && <Badge variant="outline" className="text-[10px] gap-1 border-blue-500/30 text-blue-600"><Store className="h-2.5 w-2.5" />Listed</Badge>}
+                      {a.publishStatus === 'pending'  && <Badge variant="outline" className="text-[10px] gap-1 text-amber-500 border-amber-500/30"><Store className="h-2.5 w-2.5" />Pending</Badge>}
                       {caps.map(({ icon: Icon, label }) => (
                         <Badge key={label} variant="outline" className="text-[10px] gap-1 text-muted-foreground border-border/50">
                           <Icon className="h-2.5 w-2.5" />{label}
@@ -141,12 +169,31 @@ export default function MyAgentsPage() {
                   <Button
                     size="sm" variant="ghost"
                     className="h-7 gap-1 text-xs"
+                    disabled={publishingId === a.id}
+                    title={a.publishStatus === 'approved' || a.publishStatus === 'pending' ? 'Retract from marketplace' : 'Publish to marketplace'}
+                    onClick={() => void handlePublish(a)}
+                  >
+                    {publishingId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Store className="h-3.5 w-3.5" />}
+                    {a.publishStatus === 'approved' ? 'Listed' : a.publishStatus === 'pending' ? 'Pending' : 'Publish'}
+                  </Button>
+                  <Button
+                    size="sm" variant="ghost"
+                    className="h-7 gap-1 text-xs"
                     disabled={downloadingId === a.id}
                     title="Download signed bundle for the kotwal-agent CLI"
                     onClick={() => handleDownload(a)}
                   >
                     {downloadingId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                     Download
+                  </Button>
+                  <Button
+                    size="sm" variant="ghost"
+                    className="h-7 gap-1 text-xs"
+                    disabled={downloadingId === a.id}
+                    title="Download bundle with embedded knowledge (offline RAG)"
+                    onClick={() => handleDownload(a, true)}
+                  >
+                    <Download className="h-3.5 w-3.5" />+KB
                   </Button>
                   <Button size="sm" variant="ghost" className={cn('h-7 w-7 p-0 ml-auto text-muted-foreground hover:text-[hsl(var(--danger))]')}
                     disabled={busyId === a.id} onClick={() => remove(a)}>
