@@ -77,6 +77,8 @@ export default function MyAgentsPage() {
       toast({ title: 'Failed', variant: 'destructive', description: e instanceof Error ? e.message : undefined });
     } finally { setPublishingId(null); }
   };
+
+  const openInChat = (a: Agent) => {
     navigate(`/agents/${a.id}/chat`);
   };
 
