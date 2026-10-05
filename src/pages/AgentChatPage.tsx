@@ -115,6 +115,12 @@ export default function AgentChatPage() {
 
   const modelId = agent?.modelId ?? (models.length > 0 ? models[0].id : '');
 
+  // A screenshot only helps a vision-capable model — the backend rejects an image
+  // sent to a text-only model (400), so gate the capture button on the resolved
+  // model's capabilities. Unknown/not-yet-loaded models don't block the button.
+  const activeModel = models.find(m => m.id === modelId);
+  const modelSupportsVision = !activeModel || activeModel.capabilities?.vision !== false;
+
   const handleAbort = () => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -299,7 +305,9 @@ export default function AgentChatPage() {
               onClick={() => fileInputRef.current?.click()}>
               <Paperclip className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-9 w-9" title="Capture screen" disabled={sending || capturing}
+            <Button size="icon" variant="ghost" className="h-9 w-9"
+              title={modelSupportsVision ? 'Capture screen' : "This model can't see images — pick a vision-capable model"}
+              disabled={sending || capturing || !modelSupportsVision}
               onClick={() => void handleScreenCapture()}>
               {capturing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Monitor className="h-4 w-4" />}
             </Button>

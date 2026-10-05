@@ -2,7 +2,7 @@
  * Agent API — user-facing "Agentverse". Backed by /api/agents/* (see kotwal
  * routes/agents.js). All requests share auth with the main app via apiClient.
  */
-import { API_URLS, API_BASE_URL } from '@/lib/url';
+import { API_URLS } from '@/lib/url';
 import { apiJson, apiFetch } from '@/lib/apiClient';
 
 export type AnswerMode = 'strict' | 'hybrid' | 'open';
@@ -17,6 +17,8 @@ export interface ToolConfig {
   shellExec:     { enabled: boolean; allowedCommands: string[] };
   webSearch:     boolean;
   mcpServerIds:  string[];
+  /** Proxy agents only: enforce grounding + answer mode before forwarding. */
+  groundProxy?:  boolean;
 }
 
 export function emptyToolConfig(): ToolConfig {
@@ -26,6 +28,7 @@ export function emptyToolConfig(): ToolConfig {
     shellExec:     { enabled: false, allowedCommands: [] },
     webSearch:     false,
     mcpServerIds:  [],
+    groundProxy:   false,
   };
 }
 
@@ -85,6 +88,14 @@ export interface ChatModelOption {
   id: string;
   name: string;
   provider?: string | null;
+  /** Per-model capability flags resolved by the backend (/api/chat-models). */
+  capabilities?: {
+    vision?: boolean;
+    thinking?: boolean;
+    reasoning?: boolean;
+    tools?: boolean;
+    imageGen?: boolean;
+  } | null;
 }
 
 // ── Own agents + shared catalog ─────────────────────────────────────────────
@@ -166,7 +177,7 @@ export interface MarketplaceListing {
   tenantId?: string;
 }
 
-const MARKETPLACE_BASE = `${API_BASE_URL}/api/marketplace`;
+const MARKETPLACE_BASE = API_URLS.marketplace.base;
 
 export const listMarketplace = async (opts?: { search?: string; tag?: string; limit?: number }): Promise<MarketplaceListing[]> => {
   const qs = new URLSearchParams();
@@ -178,19 +189,19 @@ export const listMarketplace = async (opts?: { search?: string; tag?: string; li
 };
 
 export const installMarketplaceAgent = async (listingId: string): Promise<Agent> => {
-  const data = await apiJson<{ agent: Agent }>(`${MARKETPLACE_BASE}/${listingId}/install`, { method: 'POST' });
+  const data = await apiJson<{ agent: Agent }>(API_URLS.marketplace.install(listingId), { method: 'POST' });
   return data.agent;
 };
 
 export const publishAgentToMarketplace = async (agentId: string, tags?: string[]): Promise<void> => {
-  await apiJson(`${API_URLS.agents.agent(agentId)}/publish`, {
+  await apiJson(API_URLS.agents.publish(agentId), {
     method: 'POST',
     body: tags ? { tags } : {},
   });
 };
 
 export const retractAgentFromMarketplace = async (agentId: string): Promise<void> => {
-  await apiJson(`${API_URLS.agents.agent(agentId)}/publish`, { method: 'DELETE' });
+  await apiJson(API_URLS.agents.publish(agentId), { method: 'DELETE' });
 };
 
 // ── Agent teams (AG11) ────────────────────────────────────────────────────────
@@ -220,30 +231,28 @@ export interface AgentTeamInput {
   members?: TeamMember[];
 }
 
-const TEAMS_BASE = `${API_BASE_URL}/api/agent-teams`;
-
 export const listAgentTeams = async (): Promise<AgentTeam[]> => {
-  const data = await apiJson<{ teams: AgentTeam[] }>(TEAMS_BASE, { method: 'GET' });
+  const data = await apiJson<{ teams: AgentTeam[] }>(API_URLS.agentTeams.base, { method: 'GET' });
   return data.teams ?? [];
 };
 
 export const getAgentTeam = async (id: string): Promise<AgentTeam> => {
-  const data = await apiJson<{ team: AgentTeam }>(`${TEAMS_BASE}/${id}`, { method: 'GET' });
+  const data = await apiJson<{ team: AgentTeam }>(API_URLS.agentTeams.team(id), { method: 'GET' });
   return data.team;
 };
 
 export const createAgentTeam = async (input: AgentTeamInput): Promise<AgentTeam> => {
-  const data = await apiJson<{ team: AgentTeam }>(TEAMS_BASE, { method: 'POST', body: input });
+  const data = await apiJson<{ team: AgentTeam }>(API_URLS.agentTeams.base, { method: 'POST', body: input });
   return data.team;
 };
 
 export const updateAgentTeam = async (id: string, input: Partial<AgentTeamInput>): Promise<AgentTeam> => {
-  const data = await apiJson<{ team: AgentTeam }>(`${TEAMS_BASE}/${id}`, { method: 'PATCH', body: input });
+  const data = await apiJson<{ team: AgentTeam }>(API_URLS.agentTeams.team(id), { method: 'PATCH', body: input });
   return data.team;
 };
 
 export const deleteAgentTeam = async (id: string): Promise<void> => {
-  await apiJson(`${TEAMS_BASE}/${id}`, { method: 'DELETE' });
+  await apiJson(API_URLS.agentTeams.team(id), { method: 'DELETE' });
 };
 
 // ── Long-term memory (AG8) ────────────────────────────────────────────────────
@@ -265,7 +274,7 @@ export const addAgentMemory = async (
   value: string,
   importance?: number,
 ): Promise<void> => {
-  await apiJson(`${API_URLS.agents.agent(agentId)}/memory`, {
+  await apiJson(API_URLS.agents.memory(agentId), {
     method: 'POST',
     body: { key, value, ...(importance !== undefined ? { importance } : {}) },
   });
@@ -273,17 +282,17 @@ export const addAgentMemory = async (
 
 export const listAgentMemory = async (agentId: string): Promise<AgentMemoryFact[]> => {
   const data = await apiJson<{ facts: AgentMemoryFact[] }>(
-    `${API_URLS.agents.agent(agentId)}/memory`, { method: 'GET' },
+    API_URLS.agents.memory(agentId), { method: 'GET' },
   );
   return data.facts ?? [];
 };
 
 export const forgetAgentMemory = async (agentId: string, key: string): Promise<void> => {
-  await apiJson(`${API_URLS.agents.agent(agentId)}/memory/${encodeURIComponent(key)}`, { method: 'DELETE' });
+  await apiJson(API_URLS.agents.memoryItem(agentId, key), { method: 'DELETE' });
 };
 
 export const clearAgentMemory = async (agentId: string): Promise<void> => {
-  await apiJson(`${API_URLS.agents.agent(agentId)}/memory`, { method: 'DELETE' });
+  await apiJson(API_URLS.agents.memory(agentId), { method: 'DELETE' });
 };
 
 // ── OAuth integrations (AG6) ───────────────────────────────────────────────────
@@ -302,38 +311,63 @@ export interface DriveFile {
   mimeType: string;
   modifiedTime: string | null;
   size: number | null;
+  isFolder?: boolean;
 }
-
-const INTEGRATIONS_BASE = `${API_BASE_URL}/api/integrations`;
 
 export const listConnections = async (): Promise<{
   connections: OAuthConnectionInfo[];
   gdrive: { enabled: boolean };
   onedrive: { enabled: boolean };
 }> => {
-  return apiJson(`${INTEGRATIONS_BASE}`, { method: 'GET' });
+  return apiJson(API_URLS.integrations.base, { method: 'GET' });
 };
 
 export const disconnectIntegration = async (provider: 'gdrive' | 'onedrive'): Promise<void> => {
-  await apiJson(`${INTEGRATIONS_BASE}/${provider}`, { method: 'DELETE' });
+  await apiJson(API_URLS.integrations.provider(provider), { method: 'DELETE' });
 };
 
 export const listDriveFiles = async (
   provider: 'gdrive' | 'onedrive',
-  opts?: { query?: string; pageSize?: number },
+  opts?: { query?: string; pageSize?: number; parentId?: string; includeFolders?: boolean },
 ): Promise<{ files: DriveFile[]; nextPageToken: string | null }> => {
   const qs = new URLSearchParams();
   if (opts?.query) qs.set('query', opts.query);
   if (opts?.pageSize) qs.set('pageSize', String(opts.pageSize));
-  return apiJson(`${INTEGRATIONS_BASE}/${provider}/files?${qs}`, { method: 'GET' });
+  if (opts?.parentId) qs.set('parentId', opts.parentId);
+  if (opts?.includeFolders) qs.set('includeFolders', 'true');
+  return apiJson(`${API_URLS.integrations.files(provider)}?${qs}`, { method: 'GET' });
 };
 
 export const getIntegrationAuthUrl = (provider: 'gdrive' | 'onedrive'): string =>
-  `${INTEGRATIONS_BASE}/${provider}/auth`;
+  API_URLS.integrations.auth(provider);
+
+// ── MCP servers (AG-MCP) ───────────────────────────────────────────────────────
+
+/**
+ * A registered MCP server the caller can attach to an agent (own or shared).
+ * Mirrors the backend MCPServer.toClientJSON() shape (secrets never included).
+ */
+export interface McpServerSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  transport: string;
+  status: string;
+  shared: boolean;
+  availableTools?: unknown[] | null;
+}
+
+export const listMcpServers = async (): Promise<McpServerSummary[]> => {
+  const data = await apiJson<{ servers: McpServerSummary[] }>(API_URLS.mcp.servers, { method: 'GET' });
+  return data.servers ?? [];
+};
 
 // ── Per-agent knowledge sources (AG4) ────────────────────────────────────────
 
-export type KnowledgeSourceType   = 'web' | 'file_upload' | 'share_link';
+export type KnowledgeSourceType =
+  | 'web' | 'file_upload' | 'share_link'
+  | 'gdrive_oauth' | 'onedrive_oauth'
+  | 'gdrive_folder' | 'onedrive_folder';
 export type KnowledgeSourceStatus = 'pending' | 'indexed' | 'error' | 'stale';
 
 export interface AgentKnowledgeSource {
@@ -352,7 +386,7 @@ export interface AgentKnowledgeSource {
 
 export const listKnowledgeSources = async (agentId: string): Promise<AgentKnowledgeSource[]> => {
   const data = await apiJson<{ sources: AgentKnowledgeSource[] }>(
-    `${API_URLS.agents.agent(agentId)}/knowledge`, { method: 'GET' },
+    API_URLS.agents.knowledge(agentId), { method: 'GET' },
   );
   return data.sources ?? [];
 };
@@ -362,7 +396,7 @@ export const addKnowledgeUrl = async (
   payload: { type: 'web' | 'share_link'; url: string; title?: string },
 ): Promise<AgentKnowledgeSource> => {
   const data = await apiJson<{ source: AgentKnowledgeSource }>(
-    `${API_URLS.agents.agent(agentId)}/knowledge`,
+    API_URLS.agents.knowledge(agentId),
     { method: 'POST', body: payload },
   );
   return data.source;
@@ -375,7 +409,7 @@ export const addKnowledgeFile = async (
   const form = new FormData();
   form.append('type', 'file_upload');
   form.append('file', file);
-  const res = await apiFetch(`${API_URLS.agents.agent(agentId)}/knowledge`, {
+  const res = await apiFetch(API_URLS.agents.knowledge(agentId), {
     method: 'POST',
     body: form as unknown as Record<string, unknown>,
   });
@@ -393,7 +427,7 @@ export const addKnowledgeDriveFile = async (
   file: DriveFile,
 ): Promise<AgentKnowledgeSource> => {
   const data = await apiJson<{ source: AgentKnowledgeSource }>(
-    `${API_URLS.agents.agent(agentId)}/knowledge`,
+    API_URLS.agents.knowledge(agentId),
     {
       method: 'POST',
       body: {
@@ -408,12 +442,36 @@ export const addKnowledgeDriveFile = async (
   return data.source;
 };
 
+/**
+ * Attach a whole Drive/OneDrive folder. The backend spawns and reconciles one
+ * per-file child source for every file in the folder subtree (folderSync).
+ */
+export const addKnowledgeDriveFolder = async (
+  agentId: string,
+  provider: 'gdrive' | 'onedrive',
+  folder: { id: string; name: string },
+): Promise<AgentKnowledgeSource> => {
+  const data = await apiJson<{ source: AgentKnowledgeSource }>(
+    API_URLS.agents.knowledge(agentId),
+    {
+      method: 'POST',
+      body: {
+        type: provider === 'gdrive' ? 'gdrive_folder' : 'onedrive_folder',
+        folderId: folder.id,
+        folderName: folder.name,
+        title: folder.name,
+      },
+    },
+  );
+  return data.source;
+};
+
 export const reindexKnowledgeSource = async (agentId: string, sourceId: string): Promise<void> => {
-  await apiJson(`${API_URLS.agents.agent(agentId)}/knowledge/${sourceId}/reindex`, { method: 'POST' });
+  await apiJson(API_URLS.agents.knowledgeReindex(agentId, sourceId), { method: 'POST' });
 };
 
 export const deleteKnowledgeSource = async (agentId: string, sourceId: string): Promise<void> => {
-  await apiJson(`${API_URLS.agents.agent(agentId)}/knowledge/${sourceId}`, { method: 'DELETE' });
+  await apiJson(API_URLS.agents.knowledgeItem(agentId, sourceId), { method: 'DELETE' });
 };
 
 // ── Agent run logs ────────────────────────────────────────────────────────────
@@ -435,7 +493,7 @@ export interface AgentRunSummary {
 
 export const listAgentRuns = async (agentId: string, limit = 20, offset = 0): Promise<AgentRunSummary[]> => {
   const data = await apiJson<{ runs: AgentRunSummary[] }>(
-    `${API_URLS.agents.agent(agentId)}/runs?limit=${limit}&offset=${offset}`,
+    `${API_URLS.agents.runs(agentId)}?limit=${limit}&offset=${offset}`,
     { method: 'GET' },
   );
   return data.runs ?? [];

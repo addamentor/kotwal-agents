@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, Plus, Trash2, RefreshCw, Loader2, Link, Upload, CheckCircle2, XCircle, Clock, AlertCircle, Cloud, Chrome } from 'lucide-react';
+import { BookOpen, Plus, Trash2, RefreshCw, Loader2, Link, Upload, CheckCircle2, XCircle, Clock, AlertCircle, Cloud, Chrome, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import {
-  AgentKnowledgeSource, KnowledgeSourceStatus, DriveFile, OAuthConnectionInfo,
-  listKnowledgeSources, addKnowledgeUrl, addKnowledgeFile, addKnowledgeDriveFile,
+  AgentKnowledgeSource, KnowledgeSourceStatus, KnowledgeSourceType, DriveFile, OAuthConnectionInfo,
+  listKnowledgeSources, addKnowledgeUrl, addKnowledgeFile, addKnowledgeDriveFile, addKnowledgeDriveFolder,
   reindexKnowledgeSource, deleteKnowledgeSource,
   listConnections,
 } from '@/services/agentApi';
 import DriveFilePicker from '@/components/DriveFilePicker';
 
 // ── Status helpers ────────────────────────────────────────────────────────────
+
+function isFolderSource(type: KnowledgeSourceType): boolean {
+  return type === 'gdrive_folder' || type === 'onedrive_folder';
+}
 
 function StatusIcon({ status }: { status: KnowledgeSourceStatus }) {
   switch (status) {
@@ -112,6 +115,17 @@ export default function KnowledgeSection({ agentId }: Props) {
       toast({ title: 'Drive file added', description: 'Indexing started.' });
     } catch (e) {
       toast({ title: 'Failed to add file', variant: 'destructive', description: e instanceof Error ? e.message : undefined });
+    } finally { setAddingDrive(false); }
+  };
+
+  const handlePickDriveFolder = async (provider: 'gdrive' | 'onedrive', folder: { id: string; name: string }) => {
+    setAddingDrive(true);
+    try {
+      const src = await addKnowledgeDriveFolder(agentId, provider, folder);
+      setSources(prev => [src, ...prev]);
+      toast({ title: 'Drive folder added', description: 'Indexing every file in the folder — status will update shortly.' });
+    } catch (e) {
+      toast({ title: 'Failed to add folder', variant: 'destructive', description: e instanceof Error ? e.message : undefined });
     } finally { setAddingDrive(false); }
   };
 
@@ -222,6 +236,7 @@ export default function KnowledgeSection({ agentId }: Props) {
         connection={gdriveConn}
         onClose={() => setPickerOpen(null)}
         onPick={f => void handlePickDriveFile('gdrive', f)}
+        onPickFolder={f => void handlePickDriveFolder('gdrive', f)}
       />
       <DriveFilePicker
         open={pickerOpen === 'onedrive'}
@@ -229,6 +244,7 @@ export default function KnowledgeSection({ agentId }: Props) {
         connection={onedriveConn}
         onClose={() => setPickerOpen(null)}
         onPick={f => void handlePickDriveFile('onedrive', f)}
+        onPickFolder={f => void handlePickDriveFolder('onedrive', f)}
       />
 
       {/* Source list */}
@@ -246,7 +262,10 @@ export default function KnowledgeSection({ agentId }: Props) {
             <li key={src.id} className="flex items-start gap-2 rounded-lg border border-border px-2.5 py-2">
               <StatusIcon status={src.status} />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">{src.title || src.url || 'Uploaded file'}</p>
+                <p className="text-xs font-medium truncate flex items-center gap-1">
+                  {isFolderSource(src.type) && <FolderOpen className="h-3 w-3 text-primary shrink-0" />}
+                  {src.title || src.url || 'Uploaded file'}
+                </p>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span className={cn('text-[10px]',
                     src.status === 'indexed' ? 'text-green-600' :
@@ -254,7 +273,9 @@ export default function KnowledgeSection({ agentId }: Props) {
                     'text-muted-foreground'
                   )}>{statusLabel(src.status)}</span>
                   {src.chunkCount > 0 && (
-                    <span className="text-[10px] text-muted-foreground">{src.chunkCount} chunks</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {isFolderSource(src.type) ? `${src.chunkCount} files` : `${src.chunkCount} chunks`}
+                    </span>
                   )}
                   {src.bytesIndexed && (
                     <span className="text-[10px] text-muted-foreground">{fmtBytes(src.bytesIndexed)}</span>

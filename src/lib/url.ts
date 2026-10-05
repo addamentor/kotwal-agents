@@ -23,6 +23,30 @@ export const API_URLS = {
     download: (id: string) => withBase(`/api/agents/${id}/download`),
     access: (id: string) => withBase(`/api/agents/${id}/access`),
     accessUser: (id: string, userId: string) => withBase(`/api/agents/${id}/access/${userId}`),
+    knowledge: (id: string) => withBase(`/api/agents/${id}/knowledge`),
+    knowledgeItem: (id: string, sourceId: string) => withBase(`/api/agents/${id}/knowledge/${sourceId}`),
+    knowledgeReindex: (id: string, sourceId: string) => withBase(`/api/agents/${id}/knowledge/${sourceId}/reindex`),
+    memory: (id: string) => withBase(`/api/agents/${id}/memory`),
+    memoryItem: (id: string, key: string) => withBase(`/api/agents/${id}/memory/${encodeURIComponent(key)}`),
+    publish: (id: string) => withBase(`/api/agents/${id}/publish`),
+    runs: (id: string) => withBase(`/api/agents/${id}/runs`),
+  },
+  integrations: {
+    base: withBase('/api/integrations'),
+    provider: (provider: string) => withBase(`/api/integrations/${provider}`),
+    files: (provider: string) => withBase(`/api/integrations/${provider}/files`),
+    auth: (provider: string) => withBase(`/api/integrations/${provider}/auth`),
+  },
+  marketplace: {
+    base: withBase('/api/marketplace'),
+    install: (id: string) => withBase(`/api/marketplace/${id}/install`),
+  },
+  agentTeams: {
+    base: withBase('/api/agent-teams'),
+    team: (id: string) => withBase(`/api/agent-teams/${id}`),
+  },
+  mcp: {
+    servers: withBase('/api/mcp/servers'),
   },
   chatModels: withBase('/api/chat-models'),
 };

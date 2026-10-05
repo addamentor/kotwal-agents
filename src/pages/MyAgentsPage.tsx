@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
-import AgentForm from '@/components/AgentForm';
+import AgentWizard from '@/components/agent-wizard/AgentWizard';
 import { Agent, listOwnAgents, deleteAgent, updateAgent, downloadAgent, publishAgentToMarketplace, retractAgentFromMarketplace } from '@/services/agentApi';
 
 export default function MyAgentsPage() {
@@ -208,7 +208,7 @@ export default function MyAgentsPage() {
         </ul>
       )}
 
-      <AgentForm
+      <AgentWizard
         open={editing !== null}
         agent={editing === 'new' ? null : editing}
         onClose={() => setEditing(null)}
