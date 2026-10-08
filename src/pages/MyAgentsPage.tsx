@@ -70,7 +70,7 @@ export default function MyAgentsPage() {
         toast({ title: 'Retracted from marketplace' });
       } else {
         await publishAgentToMarketplace(a.id);
-        setAgents(prev => prev.map(x => x.id === a.id ? { ...x, publishStatus: 'pending' } : x));
+        setAgents(prev => prev.map(x => x.id === a.id ? { ...x, publishStatus: 'pending', publishRejectReason: null } : x));
         toast({ title: 'Submitted for review', description: 'A platform admin will review your agent.' });
       }
     } catch (e) {
@@ -147,6 +147,7 @@ export default function MyAgentsPage() {
                         : <Badge variant="outline" className="text-[10px] gap-1 text-muted-foreground"><Lock className="h-2.5 w-2.5" />Private</Badge>}
                       {a.publishStatus === 'approved' && <Badge variant="outline" className="text-[10px] gap-1 border-blue-500/30 text-blue-600"><Store className="h-2.5 w-2.5" />Listed</Badge>}
                       {a.publishStatus === 'pending'  && <Badge variant="outline" className="text-[10px] gap-1 text-amber-500 border-amber-500/30"><Store className="h-2.5 w-2.5" />Pending</Badge>}
+                      {a.publishStatus === 'rejected' && <Badge variant="outline" className="text-[10px] gap-1 text-destructive border-destructive/30" title={a.publishRejectReason || undefined}><Store className="h-2.5 w-2.5" />Rejected</Badge>}
                       {caps.map(({ icon: Icon, label }) => (
                         <Badge key={label} variant="outline" className="text-[10px] gap-1 text-muted-foreground border-border/50">
                           <Icon className="h-2.5 w-2.5" />{label}
@@ -156,6 +157,11 @@ export default function MyAgentsPage() {
                   </div>
                 </div>
                 {a.description && <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{a.description}</p>}
+                {a.publishStatus === 'rejected' && a.publishRejectReason && (
+                  <p className="mt-2 text-[11px] text-destructive line-clamp-2">
+                    <span className="font-medium">Rejected:</span> {a.publishRejectReason}
+                  </p>
+                )}
 
                 <div className="mt-auto pt-3 flex items-center gap-1 flex-wrap">
                   <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={() => openInChat(a)}>
@@ -176,7 +182,7 @@ export default function MyAgentsPage() {
                     onClick={() => void handlePublish(a)}
                   >
                     {publishingId === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Store className="h-3.5 w-3.5" />}
-                    {a.publishStatus === 'approved' ? 'Listed' : a.publishStatus === 'pending' ? 'Pending' : 'Publish'}
+                    {a.publishStatus === 'approved' ? 'Listed' : a.publishStatus === 'pending' ? 'Pending' : a.publishStatus === 'rejected' ? 'Re-submit' : 'Publish'}
                   </Button>
                   <Button
                     size="sm" variant="ghost"

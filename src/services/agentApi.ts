@@ -59,6 +59,7 @@ export interface Agent {
   proxyResponsePath?: string | null;
   // Marketplace fields (AG16)
   publishStatus?: 'pending' | 'approved' | 'rejected' | null;
+  publishRejectReason?: string | null;
   version?: number;
   marketplaceTags?: string[];
   sourceAgentId?: string | null;
