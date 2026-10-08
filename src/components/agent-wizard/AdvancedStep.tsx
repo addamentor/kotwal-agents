@@ -4,6 +4,7 @@
  * wizard carries the full capability of the original AgentForm (no regression).
  */
 import { DraftFields } from './types';
+import { Switch } from '@/components/ui/switch';
 import LocalCapabilitiesEditor from './LocalCapabilitiesEditor';
 import McpServerSelector from './McpServerSelector';
 import ProxyConfigEditor, { ProxyFields } from './ProxyConfigEditor';
@@ -39,6 +40,24 @@ export default function AdvancedStep({ fields, setField, hasProxySecret }: {
           selectedIds={fields.toolConfig.mcpServerIds ?? []}
           onChange={(ids) => setField('toolConfig', { ...fields.toolConfig, mcpServerIds: ids })}
         />
+      </section>
+
+      <section className="rounded-lg border border-border px-3 py-3">
+        <h3 className="text-xs font-semibold mb-2">Knowledge access</h3>
+        <label className="flex items-start gap-2 cursor-pointer">
+          <Switch
+            checked={!!fields.toolConfig.requireDriveAccess}
+            onCheckedChange={(v) => setField('toolConfig', { ...fields.toolConfig, requireDriveAccess: v })}
+          />
+          <span className="text-xs">
+            <span className="font-medium">Require per-user Drive access</span>
+            <span className="block text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+              For Google Drive / OneDrive knowledge sources, each user must have their own access to the
+              underlying file. Users without a connection to that provider — or without access to the file —
+              won't see those chunks. URL and uploaded-file sources are always shared.
+            </span>
+          </span>
+        </label>
       </section>
 
       <section className="rounded-lg border border-border px-3 py-3">

@@ -19,6 +19,8 @@ export interface ToolConfig {
   mcpServerIds:  string[];
   /** Proxy agents only: enforce grounding + answer mode before forwarding. */
   groundProxy?:  boolean;
+  /** Enforce per-user ACL on drive-sourced knowledge at query time. */
+  requireDriveAccess?: boolean;
 }
 
 export function emptyToolConfig(): ToolConfig {
@@ -29,6 +31,7 @@ export function emptyToolConfig(): ToolConfig {
     webSearch:     false,
     mcpServerIds:  [],
     groundProxy:   false,
+    requireDriveAccess: false,
   };
 }
 
